@@ -1,26 +1,16 @@
 import { NextResponse } from 'next/server'
-import prisma from '@/lib/prisma'
+import { getStudents, getProducts, getSalesRecords } from '@/lib/google-sheets'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
     try {
-        // Fetch students with their sales records
-        const students = await prisma.student.findMany({
-            include: {
-                sales: {
-                    include: {
-                        product: true
-                    }
-                }
-            },
-            orderBy: {
-                createdAt: 'asc' // Maintain original order like a spreadsheet usually
-            }
-        })
-
-        // Fetch all products to know columns
-        const products = await prisma.product.findMany()
+        // Fetch all necessary data
+        const [students, products, salesRecords] = await Promise.all([
+            getStudents(),
+            getProducts(),
+            getSalesRecords()
+        ])
 
         // Transform data for the dashboard table
         // Row: Student info + Counts per Course
@@ -33,19 +23,21 @@ export async function GET() {
                 salesMap[p.id] = 0
             })
 
-            // Sum up actual sales
-            student.sales.forEach((sale: any) => {
-                if (salesMap[sale.productId] !== undefined) {
-                    salesMap[sale.productId] += sale.quantity
-                }
-            })
+            // Sum up actual sales for this student
+            salesRecords
+                .filter((r: any) => r.studentId === student.studentId)
+                .forEach((sale: any) => {
+                    if (salesMap[sale.productId] !== undefined) {
+                        salesMap[sale.productId] += sale.quantity
+                    }
+                })
 
             // Check "Is Converted" (Any sale > 0)
-            const totalSales = student.sales.reduce((acc: number, curr: any) => acc + curr.quantity, 0)
+            const totalSales = Object.values(salesMap).reduce((acc: number, curr: number) => acc + curr, 0)
             const isConverted = totalSales > 0
 
             return {
-                id: student.id,
+                id: student.studentId, // Use studentId as unique key
                 studentId: student.studentId,
                 name: student.name,
                 phone: student.phone,

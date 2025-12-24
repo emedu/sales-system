@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import prisma from '@/lib/prisma'
+import { addSalesRecord } from '@/lib/google-sheets'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,14 +12,13 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
         }
 
-        const sale = await prisma.salesRecord.create({
-            data: {
-                studentId,
-                productId,
-                quantity: Number(quantity) || 1
-            }
+        await addSalesRecord({
+            studentId,
+            productId,
+            quantity: Number(quantity) || 1
         })
-        return NextResponse.json(sale)
+
+        return NextResponse.json({ success: true })
     } catch (error) {
         console.error('Sales create error:', error)
         return NextResponse.json({ error: 'Failed to create sale' }, { status: 500 })
